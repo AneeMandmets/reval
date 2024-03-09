@@ -25,6 +25,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <sys/time.h>
 
 #define NTP_TIMESTAMP_DELTA 2208988800ull
 
@@ -39,7 +40,7 @@ void error( char* msg )
     exit( 0 ); // Quit the process.
 }
 
-int NTP()
+char* NTP()
 {
   int sockfd, n; // Socket file descriptor and the n return result from writing/reading from the socket.
 
@@ -130,7 +131,6 @@ int NTP()
 
   if ( n < 0 )
     error( "ERROR writing to socket" );
-
   // Wait and receive the packet back from the server. If n == -1, it failed.
 
   n = read( sockfd, ( char* ) &packet, sizeof( ntp_packet ) );
@@ -156,12 +156,36 @@ int NTP()
   double fractional = (double)packet.txTm_f / 4294967296.0;
 
   struct tm *timeinfo = localtime(&txTm); // Adjusting timezone
-  char time_str[100];
-  strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", timeinfo);
-  printf("Time: %s.%d\n", time_str, (int)(fractional * 10000000000));
-
+  char time_str[30];
+  
+  strftime(time_str, 30, "%Y-%m-%d %H:%M:%S", timeinfo);
+  
+  int required_length = sizeof(time_str) + 1 /*for '.'*/ + 6 /*max digits*/ + 1 /*null terminator*/;
+  
+  char *time = malloc(required_length); // Allocate dynamically
+  if (time == NULL) {
+      printf("Memory allocation failed");
+      return NULL;
+  }
+  snprintf(time, required_length, "%s.%d", time_str, (unsigned int)(fractional * 1000000));
+  printf("Time: %s\n", time);
+  //printf("Time: %s.%d\n", time_str, (int)(fractional * 10000000000));
+  
+  
+  /*time_t new_time_t = mktime(timeinfo);
+  struct timeval tv;
+  tv.tv_sec = new_time_t;
+  */
+  /*
+  if (settimeofday(&tv, NULL) < 0) {
+      perror("settimeofday error");
+  } else { 
+    printf("System time set\n");
+  }
+  */
   // Print the time we got from the server, accounting for local timezone and conversion from UTC time.
   //printf( "Time: %s", ctime( ( const time_t* ) &txTm ) );
 
-  return 0;
+  return time;
 }
+
