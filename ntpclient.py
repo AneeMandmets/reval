@@ -53,4 +53,9 @@ if __name__ == '__main__':
     GPIO.setup(17, GPIO.OUT)
     GPIO.setup(18, GPIO.IN)
     # sntp_client()
-    blinking(10)
+
+    tblink = threading.Thread(target=blinking, args=(10,))
+    tsense = threading.Thread(target=sensing)
+
+    tblink.join()
+    tsense.join()
