@@ -1,5 +1,5 @@
 import socket, struct, sys, time, threading
-#import RPi.GPIO as GPIO
+import RPi.GPIO as GPIO
 
 NTP_SERVER = 'ntp.ttu.ee'
 TIME1970 = 2208988800
