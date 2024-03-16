@@ -1,10 +1,11 @@
 import socket, struct, sys, time, threading
-import RPi.GPIO as GPIO
+import gpiod
 
 NTP_SERVER = 'ntp.ttu.ee'
 TIME1970 = 2208988800
 ledpin = 17
 sensorpin = 18
+
 
 def sntp_client(filename, i): 
     client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -32,30 +33,41 @@ def blinking(blinkTimes): # LED PIN 17
     i = 0
     while (i < blinkTimes):
         i = i + 1
-        GPIO.output(ledpin, GPIO.HIGH)
+        print("blinked")
+        led_line.set_value(1)
         sntp_client(blinking_file, i)
         time.sleep(1)
-        GPIO.output(ledpin, GPIO.LOW)
+        led_line.set_value(0)
         time.sleep(1)
+    led_line.release()
+    
 
-def sensing(): # Sensor PIN 18
+def sensing(blinkTimes): # Sensor PIN 18
     sensing_file = "pySensing.txt"
     i = 1
-    while(1):
-        if GPIO.input(sensorpin):
+    while(i <= blinkTimes):
+        if sensor_line.get_value() == 0:
             sntp_client(sensing_file, i)
-            time.sleep(1)
+            print("sensed")
+            time.sleep(2)
             i = i + 1
+    sensor_line.release()
 
 
 if __name__ == '__main__':
     # Set input and output pins
-    GPIO.setup(17, GPIO.OUT)
-    GPIO.setup(18, GPIO.IN)
+    chip = gpiod.Chip('gpiochip4')
+    led_line = chip.get_line(ledpin)
+    sensor_line = chip.get_line(sensorpin)
+    led_line.request(consumer="LED", type=gpiod.LINE_REQ_DIR_OUT)
+    sensor_line.request(consumer="sensor", type=gpiod.LINE_REQ_DIR_IN)
     # sntp_client()
-
-    tblink = threading.Thread(target=blinking, args=(10,))
-    tsense = threading.Thread(target=sensing)
+    i = 10
+    tblink = threading.Thread(target=blinking, args=(i,))
+    tsense = threading.Thread(target=sensing, args=(i,))
+    
+    tblink.start()
+    tsense.start()
 
     tblink.join()
     tsense.join()
