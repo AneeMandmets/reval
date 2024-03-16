@@ -14,9 +14,9 @@ void *blinking(void* i) {
 	for (int j = *n; j > 0; j--) {
 		ntpTime = NTP();
 		fprintf(blinkingTimes, "%s\n", ntpTime);
-		digitalWrite(0, HIGH);
+		digitalWrite(17, HIGH);
 		customDelay(1);
-		digitalWrite(0, LOW);
+		digitalWrite(17, LOW);
 		customDelay(1);
 	}
 	fclose(blinkingTimes);
@@ -28,10 +28,15 @@ void *sensor(void* i){
 	FILE *sensorTimes;
 	char* ntpTime;
 	sensorTimes = fopen("sensor.txt", "w");
-	while(*n != 0){
-		if(digitalRead(1) == HIGH){
+	//printf("%d\n", &n);
+	int j = *n;
+	while(j > 0){
+		if(analogRead(18) < 512){
+			printf("%d HIGH\n", j);
 			ntpTime = NTP();
 			fprintf(sensorTimes, "%s\n", ntpTime);
+			customDelay(2);
+			j--;
 		}	
 	}
 	fclose(sensorTimes);
@@ -50,7 +55,7 @@ int main() {
 	}
 	customDelay(10);
 	
-	int testTimes = 20;
+	int testTimes = 10;
 	pthread_create(&idLED, NULL, blinking, &testTimes);
 	pthread_create(&idSensor, NULL, sensor, &testTimes);
 	
