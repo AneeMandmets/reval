@@ -1,10 +1,12 @@
 import socket, struct, sys, time, threading
 import gpiod
+from gpiozero import MCP3008
 
 NTP_SERVER = 'ntp.ttu.ee'
 TIME1970 = 2208988800
 ledpin = 17
-sensorpin = 18
+
+analog_input = MCP3008(channel=0)
 
 
 def sntp_client(filename, i): 
@@ -45,22 +47,20 @@ def blinking(blinkTimes): # LED PIN 17
 def sensing(blinkTimes): # Sensor PIN 18
     sensing_file = "pySensing.txt"
     i = 1
+    
     while(i <= blinkTimes):
-        if sensor_line.get_value() == 0:
+        if analog_input.value > 0.7:
             sntp_client(sensing_file, i)
             print("sensed")
             time.sleep(2)
             i = i + 1
-    sensor_line.release()
 
 
 if __name__ == '__main__':
     # Set input and output pins
     chip = gpiod.Chip('gpiochip4')
     led_line = chip.get_line(ledpin)
-    sensor_line = chip.get_line(sensorpin)
     led_line.request(consumer="LED", type=gpiod.LINE_REQ_DIR_OUT)
-    sensor_line.request(consumer="sensor", type=gpiod.LINE_REQ_DIR_IN)
     # sntp_client()
     i = 10
     tblink = threading.Thread(target=blinking, args=(i,))
