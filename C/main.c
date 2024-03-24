@@ -5,7 +5,11 @@
 #include <stdlib.h>
 #include <wiringPi.h>
 #include <pthread.h>
+#include <mcp3004.h>
 
+#define BASE 100
+#define SPI_CHAN 1
+ 
 void *blinking(void* i) {
 	int *n = (int*)i;
 	FILE *blinkingTimes;
@@ -14,9 +18,9 @@ void *blinking(void* i) {
 	for (int j = *n; j > 0; j--) {
 		ntpTime = NTP();
 		fprintf(blinkingTimes, "%s\n", ntpTime);
-		digitalWrite(17, HIGH);
+		digitalWrite(0, HIGH);
 		customDelay(1);
-		digitalWrite(17, LOW);
+		digitalWrite(0, LOW);
 		customDelay(1);
 	}
 	fclose(blinkingTimes);
@@ -27,11 +31,14 @@ void *sensor(void* i){
 	int *n = (int*)i;
 	FILE *sensorTimes;
 	char* ntpTime;
+	//int adc;
 	sensorTimes = fopen("sensor.txt", "w");
 	//printf("%d\n", &n);
 	int j = *n;
 	while(j > 0){
-		if(analogRead(18) < 512){
+		//printf("%d\n", analogRead(BASE));
+		//customDelay(2);
+		if(analogRead(BASE) < 700){ // arv muutub vastavalt valgusele 
 			printf("%d HIGH\n", j);
 			ntpTime = NTP();
 			fprintf(sensorTimes, "%s\n", ntpTime);
@@ -45,8 +52,12 @@ void *sensor(void* i){
 
 
 int main() {
-	setUp();
+	//setUp();
+	wiringPiSetup();
+	pinMode(0, OUTPUT);
+	
 	pthread_t idLED, idSensor;
+	mcp3004Setup(BASE, SPI_CHAN);
 	char* NTP_res = NTP();
 	if (NTP_res == NULL) { // Checks for NTP connection
 		return 1;     // returns 1 if can't establish connection
