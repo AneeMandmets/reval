@@ -1,73 +1,82 @@
-import socket, struct, sys, time, threading
 import gpiod
-from gpiozero import MCP3008
+import subprocess # For executing external commands
+import time, threading, datetime, os
+import spidev
 
-NTP_SERVER = 'ntp.ttu.ee'
-TIME1970 = 2208988800
-ledpin = 17
+chip = gpiod.Chip('gpiochip0')
+led = chip.get_line(27)
+led.request(consumer='blink', type=gpiod.LINE_REQ_DIR_OUT)
 
-analog_input = MCP3008(channel=0)
+spi = spidev.SpiDev()
+spi.open(0, 0)
+spi.max_speed_hz = 5000
+spi.mode = 0
 
+def read_channel(channel):
+    adc = spi.xfer2([1, (8 + channel) << 4, 0])
+    data = ((adc[1] & 3) << 8) + adc[2]
+    return data
 
-def sntp_client(filename, i): 
-    client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    data = b'\x1b' + 47 * b'\0'
-    client.sendto(data, (NTP_SERVER, 123))
-    data, address = client.recvfrom(1024)
-    file = open(filename, "a")
-    if data: 
-        print('Response received from:', address)
-        seconds, fraction = struct.unpack('!LL', data[32:40])
-        seconds -= TIME1970
-        seconds += 2 * 60 * 60
-        fraction /= 2**32
-        file.write('%d) ' % i)
-        t = time.gmtime(seconds)
-        file.write('%s.%s\n' % (time.strftime("%H:%M:%S", t), str(fraction)[2:]))
+light_channel = 0
 
-        # print('\tTime = %s.%s' % (time.strftime("%H:%M:%S", t), str(fraction)[2:]))
-        # Adjust the fraction to represent milliseconds
-        # milliseconds = round(fraction * 1000)
-        # print('\tFractional part = %d milliseconds' % milliseconds)
+def read_adc():
+    light_level = read_channel(light_channel)
+    return light_level
 
-def blinking(blinkTimes): # LED PIN 17
-    blinking_file = "pyBlinking.txt"
-    i = 0
-    while (i < blinkTimes):
-        i = i + 1
-        print("blinked")
-        led_line.set_value(1)
-        sntp_client(blinking_file, i)
-        time.sleep(1)
-        led_line.set_value(0)
-        time.sleep(1)
-    led_line.release()
-    
+blinkTimes = 50;
+blinking_file = "Test52/pyBlinking.txt"
+sensing_file = "Test52/pySensing.txt"
+duration_file = "Test52/pyDuration.txt"
 
-def sensing(blinkTimes): # Sensor PIN 18
-    sensing_file = "pySensing.txt"
-    i = 1
-    
-    while(i <= blinkTimes):
-        if analog_input.value > 0.7:
-            sntp_client(sensing_file, i)
-            print("sensed")
-            time.sleep(2)
-            i = i + 1
+def ntp_sync():
+	server = "time.google.com"
+	command = ["sudo", "ntpdate", server]
+	result = subprocess.run(command, capture_output=True, text=True)
+	
+	if result.returncode == 0:
+		print("NTP synchronization likely successful.")
+	else:
+		print("NTP synchronization might have failed. (Error code: {})".format(result.returncode))
+		print("Error output: {}".format(result.stderr))
 
+def blinking():
+	i = 0
+	while (i < blinkTimes):
+		i = i + 1
+		printTime(i, blinking_file)
+		led.set_value(1)
+		time.sleep(0.9)
+		led.set_value(0)
+		time.sleep(1.1)
+
+def sensing():
+	i = 1
+	while(i <= blinkTimes):
+		if read_adc() > 700:
+			printTime(i, sensing_file)
+			time.sleep(1)
+			i = i + 1
+
+def printTime(i, fileName):
+	if not os.path.exists(fileName):
+		with open(fileName, 'w') as f:
+			pass
+	now = datetime.datetime.now()
+	timeStr = now.strftime("%Y-%m-%d %H:%M:%S.%f")
+	
+	with open(fileName, "a") as file:
+		file.write('%d) ' % i)
+		file.write(f"{timeStr}\n")
 
 if __name__ == '__main__':
-    # Set input and output pins
-    chip = gpiod.Chip('gpiochip4')
-    led_line = chip.get_line(ledpin)
-    led_line.request(consumer="LED", type=gpiod.LINE_REQ_DIR_OUT)
-    # sntp_client()
-    i = 10
-    tblink = threading.Thread(target=blinking, args=(i,))
-    tsense = threading.Thread(target=sensing, args=(i,))
-    
-    tblink.start()
-    tsense.start()
+	ntp_sync()
 
-    tblink.join()
-    tsense.join()
+	tblink = threading.Thread(target=blinking)
+	tsense = threading.Thread(target=sensing)
+	printTime(1, duration_file)
+	tblink.start()
+	tsense.start()
+	
+	tblink.join()
+	tsense.join()
+	printTime(2, duration_file)
